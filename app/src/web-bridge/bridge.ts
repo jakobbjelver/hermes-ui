@@ -651,6 +651,7 @@ export function createWebBridge(): Window['hermesDesktop'] {
     }),
     resetBootstrap: async () => ({ ok: true }),
     repairBootstrap: async () => ({ ok: true }),
+    continueBootstrapLocal: async () => ({ ok: false }),
     cancelBootstrap: async () => ({ ok: true, cancelled: true }),
     onBootstrapEvent: unsubscribed,
     getVersion: async () => ({
