@@ -449,11 +449,6 @@ export function createWebBridge(): Window['hermesDesktop'] {
 
       return opened ? { ok: true } : { ok: false, error: 'popup-blocked' }
     },
-    openNewSessionWindow: async () => {
-      const opened = window.open(`${window.location.pathname}#/`, '_blank', 'noopener')
-
-      return opened ? { ok: true } : { ok: false, error: 'popup-blocked' }
-    },
     petOverlay: {
       open: async () => ({ ok: false }),
       close: async () => ({ ok: true }),
