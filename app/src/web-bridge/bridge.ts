@@ -357,7 +357,14 @@ async function toConnectionConfig(stored: StoredConnection): Promise<DesktopConn
     remoteOauthConnected,
     remoteTokenPreview: stored.remoteToken ? `...${stored.remoteToken.slice(-4)}` : null,
     remoteTokenSet: hasToken,
-    remoteUrl: stored.remoteUrl
+    remoteUrl: stored.remoteUrl,
+    // SSH and cloud fields — not supported in the web build
+    cloudOrg: '',
+    sshHost: '',
+    sshUser: '',
+    sshPort: null,
+    sshKeyPath: '',
+    sshRemoteHermesPath: ''
   }
 }
 
@@ -633,6 +640,7 @@ export function createWebBridge(): Window['hermesDesktop'] {
       log: [],
       startedAt: null,
       completedAt: null,
+      setupChoice: null,
       unsupportedPlatform: null
     }),
     resetBootstrap: async () => ({ ok: true }),
