@@ -449,6 +449,8 @@ export function createWebBridge(): Window['hermesDesktop'] {
 
       return opened ? { ok: true } : { ok: false, error: 'popup-blocked' }
     },
+    openWindow: async () => ({ ok: false, error: 'not-supported' }),
+    claimAmbientCue: async () => false,
     petOverlay: {
       open: async () => ({ ok: false }),
       close: async () => ({ ok: true }),
@@ -480,6 +482,15 @@ export function createWebBridge(): Window['hermesDesktop'] {
       const status = await fetchStatus(base, upstreamOriginFor(remoteUrl))
 
       return { baseUrl: base, ok: true, version: status?.version ?? null }
+    },
+    sshConfigHosts: async () => ({ hosts: [] }),
+    sshResolveHost: async () => ({ hostname: null, identityFile: null, port: null, user: null }),
+    cloud: {
+      status: async () => ({ portalBaseUrl: '', signedIn: false }),
+      login: async () => ({ portalBaseUrl: '', signedIn: false, ok: false }),
+      logout: async () => ({ portalBaseUrl: '', signedIn: false, ok: true }),
+      discover: async () => ({ agents: [] }),
+      agentSignIn: async () => ({ baseUrl: '', connected: false })
     },
     probeConnectionConfig: async remoteUrl => {
       const base = normalizeBase(remoteUrl)
