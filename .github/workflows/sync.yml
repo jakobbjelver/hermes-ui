@@ -36,7 +36,7 @@ jobs:
           chmod +x scripts/transform.sh
           ./scripts/transform.sh upstream-monorepo
 
-      - name: Check for changes
+      - name: Check for upstream changes
         id: changes
         run: |
           if git diff --exit-code -- app/ shared/ UPSTREAM.md; then
@@ -44,7 +44,7 @@ jobs:
             echo "No changes from upstream."
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "Changes detected — will commit and build."
+            echo "Changes detected from upstream."
           fi
 
       - name: Commit and push extracted source
@@ -52,22 +52,34 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Read upstream SHA from freshly generated UPSTREAM.md
           UPSTREAM_SHA=$(head -10 UPSTREAM.md | grep -oE '[a-f0-9]{40}' | head -1)
           git add app/ shared/ UPSTREAM.md
           git commit -m "sync: upstream hermes-agent @ ${UPSTREAM_SHA:0:7}
 
           Auto-synced from NousResearch/hermes-agent main branch."
-
           git push origin main
 
+      # Build on every push to main (always), or on schedule/trigger only if upstream changed
+      - name: Determine if build is needed
+        id: build_decision
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            echo "Push event — always build."
+          elif [ "${{ steps.changes.outputs.changed }}" = "true" ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            echo "Upstream changes — build."
+          else
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "No changes and not a push — skip build."
+          fi
+
       - name: Set up Docker Buildx
-        if: steps.changes.outputs.changed == 'true'
+        if: steps.build_decision.outputs.build == 'true'
         uses: docker/setup-buildx-action@v4
 
       - name: Log into GHCR
-        if: steps.changes.outputs.changed == 'true'
+        if: steps.build_decision.outputs.build == 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -75,7 +87,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push multi-arch Docker image
-        if: steps.changes.outputs.changed == 'true'
+        if: steps.build_decision.outputs.build == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -88,7 +100,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Make package public
-        if: steps.changes.outputs.changed == 'true'
+        if: steps.build_decision.outputs.build == 'true'
         run: |
           gh api -X PATCH /user/packages/container/hermes-ui/visibility -f visibility=public --silent || true
         env:
