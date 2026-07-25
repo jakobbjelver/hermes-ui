@@ -8,7 +8,7 @@ COPY shared/ /build/shared/
 # Copy app (the Vite React app) and install + build
 COPY app/ /build/app/
 WORKDIR /build/app
-RUN bun install --frozen-lockfile
+RUN bun install
 RUN bun run build
 
 # Stage 2: Serve via nginx

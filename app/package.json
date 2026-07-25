@@ -2,9 +2,11 @@
   "name": "hermes-ui",
   "productName": "Hermes",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.17.0",
   "description": "Browser web app for Hermes Agent, extracted from the official desktop renderer.",
+  "author": "Nous Research",
   "type": "module",
+  "main": "dist/electron-main.mjs",
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
   },
@@ -14,13 +16,13 @@
     "typecheck": "tsc -p . --noEmit",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
-    "fmt": "prettier --write 'src/**/*.{ts,tsx}' 'vite.config.ts'",
+    "fmt": "prettier --write \"src/**/*.{ts,tsx}\" \"vite.config.ts\"",
     "test:ui": "vitest run --environment jsdom",
     "preview": "vite preview --port 4174"
   },
   "dependencies": {
-    "@assistant-ui/react": "^0.12.28",
-    "@assistant-ui/react-streamdown": "^0.1.11",
+    "@assistant-ui/react": "^0.14.23",
+    "@assistant-ui/react-streamdown": "^0.3.4",
     "@audiowave/react": "^0.6.2",
     "@chenglou/pretext": "^0.0.6",
     "@codemirror/commands": "^6.10.4",
@@ -65,7 +67,7 @@
     "mermaid": "^11.15.0",
     "motion": "^12.38.0",
     "nanostores": "^1.3.0",
-    "radix-ui": "^1.4.3",
+    "radix-ui": "^1.6.5",
     "react": "^19.2.5",
     "react-arborist": "^3.5.0",
     "react-dnd-html5-backend": "^14.0.3",
@@ -88,6 +90,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@playwright/test": "=1.58.2",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/react": "^16.3.2",
     "@types/d3-force": "^3.0.10",
@@ -98,27 +101,133 @@
     "@typescript-eslint/eslint-plugin": "^8.59.1",
     "@typescript-eslint/parser": "^8.59.1",
     "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^10.0.3",
+    "cross-env": "^10.1.0",
+    "esbuild": "^0.28.1",
     "eslint": "^9.39.4",
     "eslint-plugin-perfectionist": "^5.9.0",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-unused-imports": "^4.4.1",
     "globals": "^16.5.0",
-    "http-proxy-3": "^1.23.3",
     "jsdom": "^29.1.1",
     "prettier": "^3.8.3",
+    "rcedit": "^5.0.2",
+    "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vite": "^8.0.10",
-    "vite-plugin-pwa": "^1.3.0",
-    "vitest": "^4.1.5"
+    "vitest": "^4.1.5",
+    "wait-on": "^9.0.5"
   },
-  "trustedDependencies": [
-    "unicode-animations"
-  ],
-  "comment:overrides": "Pin the @assistant-ui family to the exact versions the upstream monorepo lockfile resolved (hermes-agent 56a8e81). The caret ranges otherwise let store float to 0.2.19, which dropped the tapClientResource export that react 0.12.28 imports.",
-  "overrides": {
-    "@assistant-ui/core": "0.1.17",
-    "@assistant-ui/store": "0.2.13",
-    "@assistant-ui/tap": "0.5.16"
+  "build": {
+    "electronVersion": "40.10.2",
+    "appId": "com.nousresearch.hermes",
+    "productName": "Hermes",
+    "executableName": "Hermes",
+    "protocols": [
+      {
+        "name": "Hermes Protocol",
+        "schemes": [
+          "hermes"
+        ]
+      }
+    ],
+    "artifactName": "Hermes-${version}-${os}-${arch}.${ext}",
+    "icon": "assets/icon",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "assets/**",
+      "public/**",
+      "package.json"
+    ],
+    "beforeBuild": "scripts/before-build.mjs",
+    "beforePack": "scripts/before-pack.mjs",
+    "afterPack": "scripts/after-pack.mjs",
+    "extraResources": [
+      {
+        "from": "build/install-stamp.json",
+        "to": "install-stamp.json"
+      },
+      {
+        "from": "assets/icon.ico",
+        "to": "icon.ico"
+      }
+    ],
+    "asar": true,
+    "afterSign": "scripts/notarize.mjs",
+    "asarUnpack": [
+      "**/*.node",
+      "**/prebuilds/**",
+      "dist/**"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "entitlements": "electron/entitlements.mac.plist",
+      "entitlementsInherit": "electron/entitlements.mac.inherit.plist",
+      "extendInfo": {
+        "CFBundleDisplayName": "Hermes",
+        "CFBundleExecutable": "Hermes",
+        "CFBundleName": "Hermes",
+        "NSAudioCaptureUsageDescription": "Hermes uses audio capture for voice conversations.",
+        "NSMicrophoneUsageDescription": "Hermes uses the microphone for voice input and voice conversations."
+      },
+      "gatekeeperAssess": false,
+      "hardenedRuntime": true,
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "dmg": {
+      "title": "Install Hermes",
+      "backgroundColor": "#f5f5f7",
+      "iconSize": 96,
+      "window": {
+        "width": 560,
+        "height": 360
+      },
+      "contents": [
+        {
+          "x": 160,
+          "y": 170,
+          "type": "file"
+        },
+        {
+          "x": 400,
+          "y": 170,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "win": {
+      "legalTrademarks": "Hermes",
+      "target": [
+        "nsis",
+        "msi"
+      ],
+      "signAndEditExecutable": false
+    },
+    "linux": {
+      "category": "Development",
+      "maintainer": "Nous Research <support@nousresearch.com>",
+      "synopsis": "Native desktop shell for Hermes Agent.",
+      "target": [
+        "AppImage",
+        "deb",
+        "rpm"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "shortcutName": "Hermes",
+      "uninstallDisplayName": "Hermes",
+      "warningsAsErrors": false
+    }
   }
 }

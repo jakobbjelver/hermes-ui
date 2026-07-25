@@ -72,10 +72,35 @@ import './web-bridge/install'
   fi
 fi
 
+# ── Transform package.json (derive from monorepo, remove Electron) ──────────
+echo "  transforming package.json …"
+jq '
+  .name = "hermes-ui" |
+  .description = "Browser web app for Hermes Agent, extracted from the official desktop renderer." |
+  # Remove Electron-specific dependencies from the monorepo package
+  del(.dependencies["node-pty"]) |
+  del(.dependencies["simple-git"]) |
+  del(.devDependencies["electron"]) |
+  del(.devDependencies["electron-builder"]) |
+  del(.devDependencies["@electron/rebuild"]) |
+  # Replace all scripts with web-only versions (bun-based)
+  .scripts = {
+    "dev": "vite --port 5174",
+    "build": "tsc -p . --noEmit && vite build",
+    "typecheck": "tsc -p . --noEmit",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "fmt": "prettier --write \"src/**/*.{ts,tsx}\" \"vite.config.ts\"",
+    "test:ui": "vitest run --environment jsdom",
+    "preview": "vite preview --port 4174"
+  }
+' "$DESKTOP/package.json" > "$ROOT/app/package.json"
+
 # ── Restore preserved config files ──────────────────────────────────────────
 echo "  restoring preserved configs …"
-cp "$ROOT/preserved/vite.config.ts" "$ROOT/app/vite.config.ts"
-cp "$ROOT/preserved/index.html"   "$ROOT/app/index.html"
+cp "$ROOT/preserved/vite.config.ts"  "$ROOT/app/vite.config.ts"
+cp "$ROOT/preserved/tsconfig.json"   "$ROOT/app/tsconfig.json"
+cp "$ROOT/preserved/index.html"      "$ROOT/app/index.html"
 
 # ── Record upstream commit ──────────────────────────────────────────────────
 UPSTREAM_SHA=$(cd "$MONOREPO" && git rev-parse HEAD)
