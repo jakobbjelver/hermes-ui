@@ -93,7 +93,9 @@ jq '
     "fmt": "prettier --write \"src/**/*.{ts,tsx}\" \"vite.config.ts\"",
     "test:ui": "vitest run --environment jsdom",
     "preview": "vite preview --port 4174"
-  }
+  } |
+  # Add PWA plugin (not in monorepo's Electron build)
+  .devDependencies["vite-plugin-pwa"] = "^1.3.0"
 ' "$DESKTOP/package.json" > "$ROOT/app/package.json"
 
 # ── Restore preserved config files ──────────────────────────────────────────
