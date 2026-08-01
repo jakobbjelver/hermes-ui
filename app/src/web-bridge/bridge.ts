@@ -682,7 +682,51 @@ export function createWebBridge(): Window['hermesDesktop'] {
         throw new Error('marketplace themes are unavailable in the web app')
       },
       searchMarketplace: async () => []
-    }
+    },
+    // Quick Entry: global-hotkey mini composer — desktop only, inert stub in web
+    quickEntry: {
+      getSettings: async () => ({ enabled: false, error: null, registered: false, shortcut: '' }),
+      setSettings: async () => ({ enabled: false, error: null, registered: false, shortcut: '' }),
+      submit: noop,
+      dismiss: noop,
+      pushState: noop,
+      onState: unsubscribed,
+      onSubmit: unsubscribed,
+      onShown: unsubscribed
+    },
+    readClipboard: async () => {
+      try {
+        return await navigator.clipboard.readText()
+      } catch {
+        return ''
+      }
+    },
+    findInPage: async () => ({ count: 0 }),
+    stopFindInPage: async () => {},
+    onFoundInPage: unsubscribed,
+    readFileDataUrlForAttach: async filePath => {
+      throw new Error('local file access is unavailable in the web app')
+    },
+    dataUrlReadMax: {
+      get: async () => ({ defaultMaxMb: 50, maxBytes: 50 * 1024 * 1024, maxMb: 50 }),
+      set: async maxMb => ({ defaultMaxMb: 50, maxBytes: maxMb * 1024 * 1024, maxMb })
+    },
+    watchDirectory: async dir => ({ id: '', path: dir }),
+    setActiveWork: noop,
+    setKeepAwake: noop,
+    gitRoot: async path => null,
+    revealPath: async () => false,
+    openDir: async () => ({ ok: false, error: 'not-supported' }),
+    desktopPluginsRoot: async () => {
+      throw new Error('desktop plugins are unavailable in the web app')
+    },
+    renamePath: async (path, newName) => ({ path }),
+    writeTextFile: async (path, content) => ({ path }),
+    trashPath: async () => false,
+    onOpenFolderRequested: unsubscribed,
+    onConnectionApplied: unsubscribed,
+    getOnBattery: async () => false,
+    onBatteryChanged: unsubscribed
   }
 
   return bridge as Window['hermesDesktop']
