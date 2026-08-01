@@ -425,8 +425,15 @@ function downloadBlob(blob: Blob, filename: string): void {
  * intentionally absent: their consumers probe for bridge presence and
  * self-disable (terminal), or never reach the native path in remote mode
  * (git), or render nothing (zoom).
+ *
+ * Uses Partial<> so that upstream additions to Window['hermesDesktop'] don't
+ * break the build. The `as Window['hermesDesktop']` cast at the return site
+ * asserts our partial implementation satisfies the full interface. New
+ * methods that aren't stubbed will be undefined at runtime, which the
+ * renderer's capability probes handle gracefully (they check for function
+ * existence before calling).
  */
-type WebBridge = Omit<Window['hermesDesktop'], 'terminal' | 'git' | 'zoom'>
+type WebBridge = Partial<Omit<Window['hermesDesktop'], 'terminal' | 'git' | 'zoom'>>
 
 export function createWebBridge(): Window['hermesDesktop'] {
   const bridge: WebBridge = {
