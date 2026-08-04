@@ -339,6 +339,21 @@ function connection(profile?: string | null): HermesConnection {
   }
 }
 
+/**
+ * Defaults for SSH/cloud fields that aren't relevant to the web build.
+ * When upstream adds new fields to `DesktopConnectionConfig`, add them here
+ * in one place instead of hunting through every return site.
+ */
+const WEB_SSH_CLOUD_DEFAULTS = {
+  cloudOrg: '',
+  sshHost: '',
+  sshUser: '',
+  sshPort: null as number | null,
+  sshKeyPath: '',
+  sshRemoteHermesPath: '',
+  sshRemoteProfile: ''
+}
+
 async function toConnectionConfig(stored: StoredConnection): Promise<DesktopConnectionConfig> {
   const token = resolveToken()
   const hasToken = stored.remoteAuthMode === 'token' && Boolean(stored.remoteToken || token)
@@ -358,13 +373,7 @@ async function toConnectionConfig(stored: StoredConnection): Promise<DesktopConn
     remoteTokenPreview: stored.remoteToken ? `...${stored.remoteToken.slice(-4)}` : null,
     remoteTokenSet: hasToken,
     remoteUrl: stored.remoteUrl,
-    // SSH and cloud fields — not supported in the web build
-    cloudOrg: '',
-    sshHost: '',
-    sshUser: '',
-    sshPort: null,
-    sshKeyPath: '',
-    sshRemoteHermesPath: ''
+    ...WEB_SSH_CLOUD_DEFAULTS
   }
 }
 
