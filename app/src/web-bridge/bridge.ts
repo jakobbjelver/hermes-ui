@@ -351,10 +351,7 @@ const WEB_SSH_CLOUD_DEFAULTS = {
   sshPort: null as number | null,
   sshKeyPath: '',
   sshRemoteHermesPath: '',
-  sshRemoteProfile: '',
-  // Browsers have no OS keychain (Electron safeStorage), so a persisted remote
-  // token can only ever be plain text in localStorage.
-  secureTokenStorage: false
+  sshRemoteProfile: ''
 }
 
 async function toConnectionConfig(stored: StoredConnection): Promise<DesktopConnectionConfig> {
@@ -375,9 +372,6 @@ async function toConnectionConfig(stored: StoredConnection): Promise<DesktopConn
     remoteOauthConnected,
     remoteTokenPreview: stored.remoteToken ? `...${stored.remoteToken.slice(-4)}` : null,
     remoteTokenSet: hasToken,
-    // Web storage is always plain text, so any persisted token has 'plain'
-    // encoding — mirrors the desktop's `token.encoding === 'plain'` check.
-    remoteTokenPlainText: hasToken,
     remoteUrl: stored.remoteUrl,
     ...WEB_SSH_CLOUD_DEFAULTS
   }
