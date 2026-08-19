@@ -19,6 +19,7 @@
       "@/*": ["./src/*"],
       "@hermes/plugin-sdk": ["./src/sdk/index.ts"],
       "@hermes/shared/billing": ["../shared/src/billing-types.ts"],
+      "@hermes/shared/*": ["../shared/src/*"],
       "@hermes/shared": ["../shared/src/index.ts"]
     }
   },
