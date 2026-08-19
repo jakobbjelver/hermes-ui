@@ -78,6 +78,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@hermes/plugin-sdk': path.resolve(__dirname, './src/sdk/index.ts'),
+      '@hermes/shared/billing': path.resolve(__dirname, '../shared/src/billing-types.ts'),
       '@hermes/shared': path.resolve(__dirname, '../shared/src'),
       // The tour tool injects driver.js's prebuilt IIFE into the preview pane's
       // guest page as raw source. driver.js's exports map doesn't expose that
