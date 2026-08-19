@@ -63,10 +63,37 @@ export default defineConfig({
       }
     }
   },
+  optimizeDeps: {
+    // driver.js only enters the graph through the tour tool's dynamic import
+    // chain as a `?raw` IIFE import. Letting esbuild prebundle it would rewrite
+    // the raw-text transform and break it ("does not provide an export named
+    // 'default'"). Query and bare forms all listed — exclusion matches exact ids.
+    exclude: [
+      'driver.js',
+      'driver.js/dist/driver.js.iife.js',
+      'driver.js/dist/driver.js.iife.js?raw',
+      'driver.js/dist/driver.css?raw'
+    ]
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '@hermes/shared': path.resolve(__dirname, '../shared/src')
+      '@hermes/shared': path.resolve(__dirname, '../shared/src'),
+      // The tour tool injects driver.js's prebuilt IIFE into the preview pane's
+      // guest page as raw source. driver.js's exports map doesn't expose that
+      // dist file, so alias the subpath straight to it on disk. Both keys on
+      // purpose: alias matching is exact, and the id reaches the resolver with
+      // the `?raw` query attached in dev but stripped in some build paths.
+      'driver.js/dist/driver.js.iife.js?raw': `${path.resolve(
+        __dirname,
+        'node_modules/driver.js/dist',
+        'driver.js.iife.js'
+      )}?raw`,
+      'driver.js/dist/driver.js.iife.js': path.resolve(
+        __dirname,
+        'node_modules/driver.js/dist',
+        'driver.js.iife.js'
+      )
     },
     dedupe: ['react', 'react-dom']
   },
