@@ -23,5 +23,5 @@
     }
   },
   "include": ["src", "../shared/src"],
-  "exclude": ["e2e", "electron", "playwright.config.ts", "../shared/src/**/*.test.ts", "../shared/src/**/*.test.tsx"]
+  "exclude": ["e2e", "electron", "playwright.config.ts", "**/*.test.ts", "**/*.test.tsx", "../shared/src/**/*.test.ts", "../shared/src/**/*.test.tsx"]
 }
