@@ -2,3 +2,6 @@ node_modules/
 dist/
 *.log
 .DS_Store
+app/package-lock.json
+app/bun.lock
+app/bun.lockb

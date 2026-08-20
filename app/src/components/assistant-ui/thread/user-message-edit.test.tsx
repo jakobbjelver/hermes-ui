@@ -9,6 +9,7 @@ import { type AppendMessage, ExportedMessageRepository } from '@assistant-ui/rea
 // carve-out in thread.tsx.
 import { AssistantRuntimeProvider, type ThreadMessage, useExternalStoreRuntime } from '@assistant-ui/react'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useMemo, useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { useIncrementalExternalStoreRuntime } from '@/lib/incremental-external-store-runtime'
@@ -16,6 +17,8 @@ import { useIncrementalExternalStoreRuntime } from '@/lib/incremental-external-s
 import { assistantMessage, stubThreadEnvironment, stubThreadViewportSize, userMessage } from '../test-utils'
 
 import { Thread } from '.'
+
+const noopAsync = async () => {}
 stubThreadEnvironment()
 
 afterEach(() => {
@@ -38,18 +41,21 @@ async function moveFocusOutside(editor: HTMLElement) {
 }
 
 // Mirrors chat/index.tsx: incremental runtime + messageRepository + onEdit.
+// The adapter must be referentially stable across renders — @assistant-ui/tap@>=0.9.13
+// (PR #5897) enforces a per-commit getSnapshot re-check that loops when the
+// adapter object is fresh each render. See NousResearch/hermes-agent #90795.
 function IncrementalHarness({ onEdit }: { onEdit: (message: AppendMessage) => Promise<void> }) {
-  const repository = ExportedMessageRepository.fromArray([userMessage(), assistantMessage()])
+  const [repository] = useState(() => ExportedMessageRepository.fromArray([userMessage(), assistantMessage()]))
 
-  const runtime = useIncrementalExternalStoreRuntime<ThreadMessage>({
+  const runtime = useIncrementalExternalStoreRuntime<ThreadMessage>(useMemo(() => ({
     messageRepository: repository,
     isRunning: false,
     setMessages: () => {},
-    onNew: async () => {},
+    onNew: noopAsync,
     onEdit,
-    onCancel: async () => {},
-    onReload: async () => {}
-  })
+    onCancel: noopAsync,
+    onReload: noopAsync
+  }), [repository, onEdit]))
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
@@ -59,13 +65,18 @@ function IncrementalHarness({ onEdit }: { onEdit: (message: AppendMessage) => Pr
 }
 
 // Control: stock external store runtime.
+// The adapter must be referentially stable across renders — @assistant-ui/tap@>=0.9.13
+// (PR #5897) enforces a per-commit getSnapshot re-check that loops when the
+// adapter object is fresh each render. See NousResearch/hermes-agent #90795.
 function StockHarness({ onEdit }: { onEdit: () => Promise<void> }) {
-  const runtime = useExternalStoreRuntime<ThreadMessage>({
-    messages: [userMessage(), assistantMessage()],
+  const [messages] = useState(() => [userMessage(), assistantMessage()])
+
+  const runtime = useExternalStoreRuntime<ThreadMessage>(useMemo(() => ({
+    messages,
     isRunning: false,
-    onNew: async () => {},
+    onNew: noopAsync,
     onEdit
-  })
+  }), [messages, onEdit]))
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>

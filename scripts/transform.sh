@@ -53,6 +53,23 @@ find "$ROOT/app/src" -type f \( \
   -name '*.electron.ts' -o -name '*.electron.tsx' \
 \) -delete 2>/dev/null || true
 
+# ── Stabilize ExternalStoreAdapter in ChatRuntimeBoundary ────────────────────
+# @assistant-ui/tap@>=0.9.13 (PR #5897) enforces a per-commit getSnapshot
+# re-check that throws "Maximum update depth exceeded" when the
+# `ExternalStoreAdapter` argument to `useIncrementalExternalStoreRuntime` is a
+# fresh object literal on every render — the inline-literal pattern in
+# apps/desktop/src/app/chat/index.tsx (ChatRuntimeBoundary) is the upstream
+# trigger. Memoize the adapter and hoist the no-op async handler so its
+# identity is stable across renders. The Node patcher lives in
+# preserved/scripts/ so it ships with the fork and runs on every sync. See:
+#   NousResearch/hermes-agent #90795
+#   assistant-ui/assistant-ui #6133
+if [ -f "$ROOT/preserved/scripts/patch-chat-adapter.mjs" ]; then
+  echo "  patching ChatRuntimeBoundary adapter memoization …"
+  node "$ROOT/preserved/scripts/patch-chat-adapter.mjs" \
+    "$ROOT/app/src/app/chat/index.tsx" || true
+fi
+
 # ── Inject web bridge from preserved/ ───────────────────────────────────────
 echo "  injecting web-bridge …"
 mkdir -p "$ROOT/app/src/web-bridge"
