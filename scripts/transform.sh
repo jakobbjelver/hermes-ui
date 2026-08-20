@@ -107,6 +107,47 @@ cp "$ROOT/preserved/index.html"      "$ROOT/app/index.html"
 # lines for the build-time `define` constants from vite.config.ts.
 cp "$ROOT/preserved/vite-env.d.ts"   "$ROOT/app/src/vite-env.d.ts"
 
+# ── Capture the published hermes-agent release version ─────────────────────
+# The product version users actually see (e.g. "v0.20.4") is in the upstream
+# GitHub release's NAME field, not in any monorepo package.json (the root
+# stays at "1.0.0", apps/desktop stays at "0.17.0"). Bake it into the build
+# so the About panel / status bar / command palette show the real version.
+#
+# Anonymous GitHub API works (60 req/hr per IP, fine for weekly sync). On any
+# failure we keep the previously-captured value so the build still ships.
+HERMES_VERSION_FILE="$ROOT/app/HERMES_VERSION"
+PREV_VERSION=""
+if [ -f "$HERMES_VERSION_FILE" ]; then
+  PREV_VERSION="$(cat "$HERMES_VERSION_FILE")"
+fi
+NEW_VERSION=""
+if command -v curl >/dev/null 2>&1; then
+  RELEASE_JSON="$(curl -fsSL --max-time 15 \
+    "https://api.github.com/repos/NousResearch/hermes-agent/releases/latest" \
+    2>/dev/null || true)"
+  if [ -n "$RELEASE_JSON" ] && command -v jq >/dev/null 2>&1; then
+    # Prefer the version embedded in the release name ("Hermes Agent v0.20.4
+    # (2026.8.18)"). Fall back to the tag. Fall back to the previous value.
+    NEW_VERSION="$(echo "$RELEASE_JSON" | jq -r \
+      '(.name | capture("v(?<v>[0-9]+\\.[0-9]+\\.[0-9]+)") | .v) // (.tag_name | capture("v(?<v>[0-9]+\\.[0-9]+\\.[0-9]+)") | .v) // empty' \
+      2>/dev/null || true)"
+  fi
+fi
+if [ -z "$NEW_VERSION" ]; then
+  if [ -n "$PREV_VERSION" ]; then
+    echo "  hermes version: $PREV_VERSION (kept previous; API unavailable)"
+    NEW_VERSION="$PREV_VERSION"
+  else
+    # Last-resort fallback so the file always exists and the build never
+    # crashes on a missing HERMES_VERSION.
+    echo "  hermes version: unknown (API unavailable, no previous value)"
+    NEW_VERSION="0.0.0-unknown"
+  fi
+else
+  echo "  hermes version: $NEW_VERSION"
+fi
+printf '%s\n' "$NEW_VERSION" > "$HERMES_VERSION_FILE"
+
 # ── Record upstream commit ──────────────────────────────────────────────────
 UPSTREAM_SHA=$(cd "$MONOREPO" && git rev-parse HEAD)
 UPSTREAM_DATE=$(cd "$MONOREPO" && git log -1 --format=%cs HEAD)

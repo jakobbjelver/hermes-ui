@@ -677,11 +677,11 @@ export function createWebBridge(): Window['hermesDesktop'] {
     cancelBootstrap: async () => ({ ok: true, cancelled: true }),
     onBootstrapEvent: unsubscribed,
     getVersion: async () => ({
-      // Inlined at build time by vite's `define` (see vite.config.ts). tsc sees
-      // the `declare const` in app/src/vite-env.d.ts. Vite replaces the bare
-      // identifier in source but skips .d.ts files, so the declaration itself
-      // is preserved.
-      appVersion: __HERMES_UI_VERSION__,
+      // The product version users see in the release notes / About panel.
+      // Captured by scripts/transform.sh from the latest hermes-agent GitHub
+      // release at sync time and inlined here by vite's `define`. tsc sees the
+      // `declare const` in app/src/vite-env.d.ts.
+      appVersion: __HERMES_VERSION__,
       electronVersion: '',
       nodeVersion: '',
       platform: 'web',
