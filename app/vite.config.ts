@@ -3,6 +3,18 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+
+// Surface the package.json `version` field into the renderer so the web UI can
+// show a real version (used by the web bridge's getVersion() and the About
+// settings panel) instead of the static `'0.1.0-web'` placeholder.
+const pkg = JSON.parse(
+  readFileSync(
+    fileURLToPath(new URL('./package.json', import.meta.url)),
+    'utf8'
+  )
+) as { version: string; name: string }
 
 export default defineConfig({
   base: './',
@@ -10,7 +22,9 @@ export default defineConfig({
   // a redeploy (or dev restart) drops any persisted query blob whose data shape
   // may have changed.
   define: {
-    __HERMES_BUILD_ID__: JSON.stringify(String(Date.now()))
+    __HERMES_BUILD_ID__: JSON.stringify(String(Date.now())),
+    __HERMES_UI_VERSION__: JSON.stringify(pkg.version),
+    __HERMES_UI_NAME__: JSON.stringify(pkg.name)
   },
   plugins: [
     react(),

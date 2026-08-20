@@ -102,6 +102,10 @@ echo "  restoring preserved configs …"
 cp "$ROOT/preserved/vite.config.ts"  "$ROOT/app/vite.config.ts"
 cp "$ROOT/preserved/tsconfig.json"   "$ROOT/app/tsconfig.json"
 cp "$ROOT/preserved/index.html"      "$ROOT/app/index.html"
+# vite-env.d.ts is preserved verbatim — upstream's version is a one-line
+# `/// <reference types="vite/client" />`, and the fork needs `declare const`
+# lines for the build-time `define` constants from vite.config.ts.
+cp "$ROOT/preserved/vite-env.d.ts"   "$ROOT/app/src/vite-env.d.ts"
 
 # ── Record upstream commit ──────────────────────────────────────────────────
 UPSTREAM_SHA=$(cd "$MONOREPO" && git rev-parse HEAD)
