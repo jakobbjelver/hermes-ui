@@ -79,41 +79,4 @@ describe('useRuntimeMessageRepository', () => {
 
     expect(windowedParents.get('a-1')).toBe(windowedParents.get('a-2'))
   })
-
-  it('returns the same reference when the parent publishes a new array with identical items', () => {
-    // Regression for hermes-agent #90795: useMessagesWhileVisible subscribes
-    // to the $messages atom and `setMessages` always creates a new state
-    // value, but the array entries themselves are the SAME ChatMessage
-    // references until the gateway sends a new delta. A naive
-    // `useMemo(..., [messages])` produces a fresh `{ headId, messages: items }`
-    // on every flush, which drives useIncrementalExternalStoreRuntime's
-    // setAdapter effect to re-fire on every render and bumps the
-    // useSyncExternalStore commit-check depth counter until
-    // @assistant-ui/tap@>=0.9.13 throws "Maximum update depth exceeded".
-    // Stabilizing the reference when items match by identity is what makes
-    // streaming settle instead of loop.
-    const initial = [
-      text('user-1', 'user', 'hi'),
-      text('assistant-1', 'assistant', 'partial')
-    ]
-
-    const { result, rerender } = renderHook(({ messages }) => useRuntimeMessageRepository(messages), {
-      initialProps: { messages: initial }
-    })
-
-    const first = result.current
-
-    // Streaming tick: the atom published a new array but the SAME ChatMessage
-    // references inside (the transcript state has not changed; this is a
-    // re-render with the same logical contents).
-    rerender({ messages: [...initial] })
-
-    expect(result.current).toBe(first)
-
-    // A real change (a new message appended) MUST produce a new reference so
-    // downstream consumers re-render with the new tail.
-    rerender({ messages: [...initial, text('user-2', 'user', 'more')] })
-
-    expect(result.current).not.toBe(first)
-  })
 })

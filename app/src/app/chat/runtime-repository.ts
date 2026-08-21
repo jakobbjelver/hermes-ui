@@ -35,16 +35,6 @@ function itemsEqual(
  * re-normalizing the entire settled transcript ~30x/s. Normalizing inside the
  * cache miss keeps identity stable for settled turns, which is what lets the
  * runtime reconcile detect that only the tail moved.
- *
- * Returns a STABLE reference across renders when the items array is unchanged
- * (same length, same per-index message + parentId identity). The parent atom
- * publishes a fresh `messages` array on every flush, and naively memoizing on
- * that array identity would invalidate this hook every flush — driving
- * `useIncrementalExternalStoreRuntime`'s `setAdapter` effect to re-fire and
- * bumping the `useSyncExternalStore` commit-check depth counter, eventually
- * tripping `@assistant-ui/tap@>=0.9.13`'s strict "Maximum update depth exceeded"
- * guard. Returning a stable reference here is what makes the streaming path
- * settle instead of loop. See NousResearch/hermes-agent #90795.
  */
 export function useRuntimeMessageRepository(messages: ChatMessage[]): ExportedMessageRepository {
   const cacheRef = useRef(new WeakMap<ChatMessage, ThreadMessage>())
@@ -52,7 +42,7 @@ export function useRuntimeMessageRepository(messages: ChatMessage[]): ExportedMe
   const previousRef = useRef<ExportedMessageRepository | null>(null)
 
   return useMemo(() => {
-    const items: ExportedMessageRepositoryItem[] = []
+    const items: { message: ThreadMessage; parentId: string | null }[] = []
     const branchParentByGroup = new Map<string, string | null>()
     const seenIds = new Set<string>()
     let visibleParentId: string | null = null
