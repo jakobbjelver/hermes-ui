@@ -70,6 +70,23 @@ if [ -f "$ROOT/preserved/scripts/patch-chat-adapter.mjs" ]; then
     "$ROOT/app/src/app/chat/index.tsx" || true
 fi
 
+# ── Stabilize runtimeMessageRepository across streaming deltas ───────────────
+# useMessagesWhileVisible subscribes to the $messages atom and `setMessages`
+# always installs a new state value, but the atom's array entries are the
+# SAME ChatMessage references until the gateway sends a new delta. A naive
+# `useMemo(..., [messages])` produces a fresh `{ headId, messages: items }`
+# on every flush, which drives useIncrementalExternalStoreRuntime's setAdapter
+# effect to re-fire on every render and bumps the useSyncExternalStore
+# commit-check depth counter until @assistant-ui/tap@>=0.9.13 throws
+# "Maximum update depth exceeded". Returning the previous repo when the items
+# match by identity is what makes streaming settle instead of loop. See
+# NousResearch/hermes-agent #90795.
+if [ -f "$ROOT/preserved/scripts/patch-runtime-repository.mjs" ]; then
+  echo "  patching runtime-repository stable-reference …"
+  node "$ROOT/preserved/scripts/patch-runtime-repository.mjs" \
+    "$ROOT/app/src/app/chat/runtime-repository.ts" || true
+fi
+
 # ── Inject web bridge from preserved/ ───────────────────────────────────────
 echo "  injecting web-bridge …"
 mkdir -p "$ROOT/app/src/web-bridge"
