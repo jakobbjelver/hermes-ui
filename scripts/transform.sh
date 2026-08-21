@@ -129,12 +129,12 @@ jq '
     "preview": "vite preview --port 4174"
   } |
   .devDependencies["vite-plugin-pwa"] = "^1.3.0" |
-  # Pin @babel/core to v7. Babel 8 (8.0.1) became npm `latest` — a fresh
-  # `bun install` (no lockfile) hoists it to the top of node_modules, and
-  # workbox-build@7.4.1 (vite-plugin-pwa's SW generator) requires ^7.24.4,
-  # crashing with "Requires Babel ^7.0.0-0, but was loaded with 8.0.1".
-  # A top-level v7 pin makes bun hoist 7.x and nest 8.x only where a package
-  # strictly requires it.
+  # Pin @babel/core to v7. Babel 8 (8.0.1) became npm latest; a fresh
+  # bun install (no lockfile) hoists it to the top of node_modules, and
+  # workbox-build@7.4.1 (the PWA service-worker generator) requires
+  # ^7.24.4, crashing with "Requires Babel ^7.0.0-0, loaded 8.0.1".
+  # A top-level v7 pin makes bun hoist 7.x and nest 8.x only where a
+  # package strictly requires it.
   .devDependencies["@babel/core"] = "^7.29.7"
 ' "$DESKTOP/package.json" > "$ROOT/app/package.json"
 
