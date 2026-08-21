@@ -102,7 +102,7 @@ jq '
   # A top-level v7 pin makes bun hoist 7.x and nest 8.x only where a
   # package strictly requires it.
   .devDependencies["@babel/core"] = "^7.29.7" |
-  # Pin @assistant-ui/tap to the version upstream's package-lock.json
+  # Pin @assistant-ui/tap to the version the upstream package-lock.json
   # ships to the desktop app (0.9.8). The fork builds with bun and NO
   # lockfile, so a bare range would float to tap@0.9.13 (npm latest),
   # whose useSyncExternalStore strict guard (PR #5897) throws "Maximum
