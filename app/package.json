@@ -238,5 +238,8 @@
       "uninstallDisplayName": "Hermes",
       "warningsAsErrors": false
     }
+  },
+  "overrides": {
+    "@assistant-ui/tap": "0.9.8"
   }
 }
