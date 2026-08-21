@@ -1,4 +1,4 @@
-import { type AppendMessage, AssistantRuntimeProvider, type ExternalStoreAdapter, type ThreadMessage } from '@assistant-ui/react'
+import { type AppendMessage, AssistantRuntimeProvider, type ThreadMessage } from '@assistant-ui/react'
 import { useStore } from '@nanostores/react'
 import { useQuery } from '@tanstack/react-query'
 import type { ReadableAtom } from 'nanostores'
@@ -300,37 +300,18 @@ function ChatRuntimeBoundary({
 
   const transcriptWindow = useMemo(() => ({ olderAvailable, expandWindow }), [expandWindow, olderAvailable])
 
-  // Stable adapter reference. @assistant-ui/tap@>=0.9.13 enforces a per-commit
-  // getSnapshot re-check; a fresh ExternalStoreAdapter object literal on every
-  // render would re-trigger runtime.setAdapter via the effect below (line ~250
-  // in incremental-external-store-runtime.ts), which mutates the store and
-  // re-notifies subscribers — looping until React's 50-cycle guard throws
-  // "Maximum update depth exceeded". Memoize the whole adapter so its
-  // identity is stable across renders. See NousResearch/hermes-agent #90795
-  // and assistant-ui/assistant-ui #6133.
-  const noopAsync = useCallback(async () => {
-    // Submission is handled explicitly by ChatBar.
-    // Keeping this no-op avoids duplicate prompt.submit calls.
-  }, [])
-
-  const wrappedOnCancel = useCallback(async () => {
-    await onCancel()
-  }, [onCancel])
-
-  const externalStoreAdapter = useMemo(
-    () => ({
-      messageRepository: runtimeMessageRepository,
-      isRunning: busy,
-      setMessages: onThreadMessagesChange,
-      onNew: noopAsync,
-      onEdit,
-      onCancel: wrappedOnCancel,
-      onReload
-    }),
-    [runtimeMessageRepository, busy, onThreadMessagesChange, noopAsync, onEdit, wrappedOnCancel, onReload]
-  )
-
-  const runtime = useIncrementalExternalStoreRuntime<ThreadMessage>(externalStoreAdapter)
+  const runtime = useIncrementalExternalStoreRuntime<ThreadMessage>({
+    messageRepository: runtimeMessageRepository,
+    isRunning: busy,
+    setMessages: onThreadMessagesChange,
+    onNew: async () => {
+      // Submission is handled explicitly by ChatBar.
+      // Keeping this no-op avoids duplicate prompt.submit calls.
+    },
+    onEdit,
+    onCancel: async () => onCancel(),
+    onReload
+  })
 
   return (
     <TranscriptWindowProvider value={transcriptWindow}>

@@ -53,40 +53,6 @@ find "$ROOT/app/src" -type f \( \
   -name '*.electron.ts' -o -name '*.electron.tsx' \
 \) -delete 2>/dev/null || true
 
-# ── Stabilize ExternalStoreAdapter in ChatRuntimeBoundary ────────────────────
-# @assistant-ui/tap@>=0.9.13 (PR #5897) enforces a per-commit getSnapshot
-# re-check that throws "Maximum update depth exceeded" when the
-# `ExternalStoreAdapter` argument to `useIncrementalExternalStoreRuntime` is a
-# fresh object literal on every render — the inline-literal pattern in
-# apps/desktop/src/app/chat/index.tsx (ChatRuntimeBoundary) is the upstream
-# trigger. Memoize the adapter and hoist the no-op async handler so its
-# identity is stable across renders. The Node patcher lives in
-# preserved/scripts/ so it ships with the fork and runs on every sync. See:
-#   NousResearch/hermes-agent #90795
-#   assistant-ui/assistant-ui #6133
-if [ -f "$ROOT/preserved/scripts/patch-chat-adapter.mjs" ]; then
-  echo "  patching ChatRuntimeBoundary adapter memoization …"
-  node "$ROOT/preserved/scripts/patch-chat-adapter.mjs" \
-    "$ROOT/app/src/app/chat/index.tsx" || true
-fi
-
-# ── Stabilize runtimeMessageRepository across streaming deltas ───────────────
-# useMessagesWhileVisible subscribes to the $messages atom and `setMessages`
-# always installs a new state value, but the atom's array entries are the
-# SAME ChatMessage references until the gateway sends a new delta. A naive
-# `useMemo(..., [messages])` produces a fresh `{ headId, messages: items }`
-# on every flush, which drives useIncrementalExternalStoreRuntime's setAdapter
-# effect to re-fire on every render and bumps the useSyncExternalStore
-# commit-check depth counter until @assistant-ui/tap@>=0.9.13 throws
-# "Maximum update depth exceeded". Returning the previous repo when the items
-# match by identity is what makes streaming settle instead of loop. See
-# NousResearch/hermes-agent #90795.
-if [ -f "$ROOT/preserved/scripts/patch-runtime-repository.mjs" ]; then
-  echo "  patching runtime-repository stable-reference …"
-  node "$ROOT/preserved/scripts/patch-runtime-repository.mjs" \
-    "$ROOT/app/src/app/chat/runtime-repository.ts" || true
-fi
-
 # ── Inject web bridge from preserved/ ───────────────────────────────────────
 echo "  injecting web-bridge …"
 mkdir -p "$ROOT/app/src/web-bridge"
@@ -135,7 +101,18 @@ jq '
   # ^7.24.4, crashing with "Requires Babel ^7.0.0-0, loaded 8.0.1".
   # A top-level v7 pin makes bun hoist 7.x and nest 8.x only where a
   # package strictly requires it.
-  .devDependencies["@babel/core"] = "^7.29.7"
+  .devDependencies["@babel/core"] = "^7.29.7" |
+  # Pin @assistant-ui/tap to the version upstream's package-lock.json
+  # ships to the desktop app (0.9.8). The fork builds with bun and NO
+  # lockfile, so a bare range would float to tap@0.9.13 (npm latest),
+  # whose useSyncExternalStore strict guard (PR #5897) throws "Maximum
+  # update depth exceeded" on the atom-driven flush architecture —
+  # session switches + streaming crash the workspace pane. Upstream
+  # desktop never sees it because its lockfile pins 0.9.8, which has no
+  # such guard. Mirroring the upstream lockfile is what makes the web
+  # build behave exactly like the desktop. See NousResearch/hermes-agent
+  # #90795.
+  .overrides["@assistant-ui/tap"] = "0.9.8"
 ' "$DESKTOP/package.json" > "$ROOT/app/package.json"
 
 # ── Restore preserved config files ──────────────────────────────────────────

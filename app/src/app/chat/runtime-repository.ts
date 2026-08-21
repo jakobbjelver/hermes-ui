@@ -1,5 +1,5 @@
 import { fromThreadMessageLike, getAutoStatus } from '@assistant-ui/core/internal'
-import type { ExportedMessageRepository, ExportedMessageRepositoryItem, ThreadMessage } from '@assistant-ui/react'
+import type { ExportedMessageRepository, ThreadMessage } from '@assistant-ui/react'
 import { useMemo, useRef } from 'react'
 
 import type { ChatMessage } from '@/lib/chat-messages'
@@ -9,19 +9,6 @@ import { coalesceToolOnlyAssistants, createToolMergeCache, toRuntimeMessage } fr
 // Normalization happens HERE, once per message, so the cached record below is
 // already the final ThreadMessage the runtime consumes.
 const FALLBACK_STATUS = getAutoStatus(false, false, false, false, undefined)
-
-function itemsEqual(
-  a: readonly ExportedMessageRepositoryItem[],
-  b: readonly ExportedMessageRepositoryItem[]
-): boolean {
-  if (a.length !== b.length) return false
-  for (let i = 0; i < a.length; i++) {
-    const ai = a[i]
-    const bi = b[i]
-    if (ai.message !== bi.message || ai.parentId !== bi.parentId) return false
-  }
-  return true
-}
 
 /**
  * ChatMessage[] -> assistant-ui message repository, with a WeakMap identity
@@ -39,7 +26,6 @@ function itemsEqual(
 export function useRuntimeMessageRepository(messages: ChatMessage[]): ExportedMessageRepository {
   const cacheRef = useRef(new WeakMap<ChatMessage, ThreadMessage>())
   const toolMergeCacheRef = useRef(createToolMergeCache())
-  const previousRef = useRef<ExportedMessageRepository | null>(null)
 
   return useMemo(() => {
     const items: { message: ThreadMessage; parentId: string | null }[] = []
@@ -87,12 +73,6 @@ export function useRuntimeMessageRepository(messages: ChatMessage[]): ExportedMe
       }
     }
 
-    const previous = previousRef.current
-    const next: ExportedMessageRepository = previous && previous.headId === headId && itemsEqual(previous.messages, items)
-      ? previous
-      : { headId, messages: items }
-
-    previousRef.current = next
-    return next
+    return { headId, messages: items }
   }, [messages])
 }
