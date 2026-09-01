@@ -582,6 +582,7 @@ export function createWebBridge(): Window['hermesDesktop'] {
     },
     profile: {
       get: async () => ({ profile: null }),
+      remember: async name => ({ profile: name }),
       set: async name => ({ profile: name })
     },
     api: apiFetch,
