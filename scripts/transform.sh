@@ -58,6 +58,17 @@ echo "  injecting web-bridge …"
 mkdir -p "$ROOT/app/src/web-bridge"
 cp "$ROOT/preserved/web-bridge/"*.ts "$ROOT/app/src/web-bridge/"
 
+# ── Inject pure-TS electron-shared modules from preserved/ ──────────────────
+# Upstream renderer code imports e.g. '../../../electron/pool-limits' (a pure
+# constants/clamp module with no Electron IPC). The transform deletes the whole
+# electron/ tree, so restore any preserved shared module under the same path the
+# import resolves to (app/electron/...).
+echo "  restoring preserved/electron shared modules …"
+if [ -d "$ROOT/preserved/electron" ]; then
+  mkdir -p "$ROOT/app/electron"
+  cp -a "$ROOT/preserved/electron/." "$ROOT/app/electron/"
+fi
+
 # ── Patch main.tsx: prepend web-bridge import as the FIRST line ─────────────
 echo "  patching main.tsx …"
 MAIN="$ROOT/app/src/main.tsx"
