@@ -29,7 +29,7 @@ import type {
   HermesConnection
 } from '@/global'
 
-import type { HermesNotification } from '../electron/notification-types'
+import type { HermesNotification } from '../../electron/notification-types'
 
 import {
   activeUpstreamOrigin,
