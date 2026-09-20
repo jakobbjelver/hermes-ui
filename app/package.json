@@ -2,7 +2,7 @@
   "name": "hermes-ui",
   "productName": "Hermes",
   "private": true,
-  "version": "0.17.2",
+  "version": "0.17.6",
   "description": "Browser web app for Hermes Agent, extracted from the official desktop renderer.",
   "author": "Nous Research",
   "repository": {
@@ -155,7 +155,7 @@
     ],
     "beforeBuild": "scripts/before-build.mjs",
     "beforePack": "scripts/before-pack.mjs",
-    "afterPack": "scripts/after-pack.mjs",
+    "afterExtract": "scripts/after-extract.mjs",
     "extraResources": [
       {
         "from": "build/install-stamp.json",
