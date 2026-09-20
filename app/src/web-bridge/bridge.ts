@@ -25,6 +25,7 @@ import type {
   DesktopConnectionConfig,
   DesktopConnectionConfigInput,
   DesktopOauthLoginResult,
+  DesktopProfileRoute,
   HermesApiRequest,
   HermesConnection
 } from '@/global'
@@ -58,6 +59,76 @@ const TOKEN_STORAGE_KEY = 'hermes-web.session-token'
 
 const noop = (): void => {}
 const unsubscribed = (): (() => void) => noop
+
+/**
+ * The default-profile route ("Set as default" in the profile menu). Electron
+ * persists it to disk and owns the cross-window broadcast; the browser mirrors
+ * the same preference in localStorage and fans changes out to this tab's
+ * listeners plus `storage` events raised by other tabs, so the renderer's
+ * consumers (`$defaultProfileRoute` → new-session routing, connections
+ * registry) behave exactly as they do on the desktop.
+ */
+const DEFAULT_PROFILE_ROUTE_KEY = 'hermes-web.default-profile-route'
+
+const defaultProfileListeners = new Set<(route: DesktopProfileRoute | null) => void>()
+
+function readStoredDefaultProfileRoute(): DesktopProfileRoute | null {
+  try {
+    const raw = localStorage.getItem(DEFAULT_PROFILE_ROUTE_KEY)
+
+    if (!raw) {
+      return null
+    }
+
+    const parsed: unknown = JSON.parse(raw)
+
+    if (!parsed || typeof parsed !== 'object') {
+      return null
+    }
+
+    const { connectionId, profile } = parsed as { connectionId?: unknown; profile?: unknown }
+
+    if ((connectionId !== null && typeof connectionId !== 'string') || typeof profile !== 'string') {
+      return null
+    }
+
+    return { connectionId, profile }
+  } catch {
+    // Storage disabled (private mode) or malformed JSON: no default is set.
+    return null
+  }
+}
+
+function writeStoredDefaultProfileRoute(route: DesktopProfileRoute): void {
+  try {
+    localStorage.setItem(DEFAULT_PROFILE_ROUTE_KEY, JSON.stringify(route))
+  } catch {
+    // Storage disabled: listeners still observe the change in this tab.
+  }
+}
+
+function emitDefaultProfileChange(route: DesktopProfileRoute | null): void {
+  for (const listener of [...defaultProfileListeners]) {
+    listener(route)
+  }
+}
+
+function subscribeDefaultProfileChange(callback: (route: DesktopProfileRoute | null) => void): () => void {
+  defaultProfileListeners.add(callback)
+
+  const onStorage = (event: StorageEvent): void => {
+    if (event.key === DEFAULT_PROFILE_ROUTE_KEY) {
+      callback(readStoredDefaultProfileRoute())
+    }
+  }
+
+  window.addEventListener('storage', onStorage)
+
+  return () => {
+    defaultProfileListeners.delete(callback)
+    window.removeEventListener('storage', onStorage)
+  }
+}
 
 /**
  * The bridge always operates on the ACTIVE gateway (see `./gateways`). This is
@@ -582,6 +653,16 @@ export function createWebBridge(): Window['hermesDesktop'] {
       return { ok: true, connected: false }
     },
     profile: {
+      getDefault: async () => readStoredDefaultProfileRoute(),
+      setDefault: async route => {
+        // Desktop also relaunches the local backend under the new profile;
+        // the web app only needs the preference itself.
+        writeStoredDefaultProfileRoute(route)
+        emitDefaultProfileChange(route)
+
+        return route
+      },
+      onDefaultChanged: callback => subscribeDefaultProfileChange(callback),
       get: async () => ({ profile: null }),
       remember: async name => ({ profile: name }),
       set: async name => ({ profile: name })
