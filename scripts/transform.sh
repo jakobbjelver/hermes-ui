@@ -123,7 +123,12 @@ jq '
   # such guard. Mirroring the upstream lockfile is what makes the web
   # build behave exactly like the desktop. See NousResearch/hermes-agent
   # #90795.
-  .overrides["@assistant-ui/tap"] = "0.9.8"
+  .overrides["@assistant-ui/tap"] = "0.9.8" |
+  # lucide-react is imported by the renderer (onboarding setup card) but is
+  # not declared in apps/desktop/package.json upstream — it only resolves via
+  # the monorepo root hoist. Standalone forks have no hoist, so declare the
+  # exact version the upstream package-lock.json ships (0.577.0).
+  .dependencies["lucide-react"] = "0.577.0"
 ' "$DESKTOP/package.json" > "$ROOT/app/package.json"
 
 # ── Restore preserved config files ──────────────────────────────────────────
