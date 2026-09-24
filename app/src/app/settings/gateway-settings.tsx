@@ -1,3 +1,4 @@
+import { isGatewayReauthRequired } from '@hermes/shared'
 import { useStore } from '@nanostores/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
@@ -14,6 +15,7 @@ import type {
   DesktopRegistryConnection
 } from '@/global'
 import { useI18n } from '@/i18n'
+import { reestablishCloudAgentSession } from '@/lib/cloud-agent-session'
 import { ExternalLink } from '@/lib/external-link'
 import {
   AlertCircle,
@@ -45,7 +47,9 @@ import { ConnectionsRegistrySection } from './connections-registry'
 import { CONTROL_TEXT } from './constants'
 import { ManagedUpdatesSection } from './managed-updates-section'
 import { EmptyState, ListRow, Pill, SettingsContent, SettingsSkeleton, ToggleRow } from './primitives'
+import { SETTING_IDS, settingElementId } from './settings-manifest'
 import { enrichSelectedSshHost, selectSshHost } from './ssh-host-selection'
+import { useSettingDeepLink } from './use-setting-deep-link'
 
 type Mode = 'local' | 'remote' | 'cloud' | 'ssh'
 type AuthMode = 'oauth' | 'token'
@@ -168,6 +172,8 @@ interface GatewaySettingsProps {
 }
 
 export function GatewaySettings({ embedded = false, subpage }: GatewaySettingsProps = {}) {
+  useSettingDeepLink('gateway', page => subpage === undefined || page === subpage)
+
   // Recovery always keeps the complete connection form, regardless of a
   // settings destination. Other tasks never mount that form or its probes.
   if (!embedded && subpage === 'devices') {
@@ -413,11 +419,50 @@ function GatewayConnectionSettings({ embedded, standalone }: { embedded: boolean
   const isConnectedAgent = (agent: DesktopCloudAgent) =>
     savedAgent(agent)?.id === activeConnectionId && !cloudTeamChanged(savedAgent(agent), cloudOrg)
 
-  const activateSavedCloud = async (id: string) => {
+  // A saved cloud connection's gateway session can lapse while the app sits
+  // on a local-primary device — the dial then rejects with a reauth-shaped
+  // error whose copy points here ("Open Settings → Gateway and sign in
+  // again"), yet nothing else in Settings re-authenticates a cloud row. Run
+  // the one recovery that exists for this state — drop the lapsed cookies,
+  // ensure the portal session, silent-cascade the agent — then retry the
+  // switch once. Everything else stays a plain failed switch.
+  const selectSavedCloudWithReauth = async (id: string, dashboardUrl?: string) => {
+    try {
+      await selectConnection(id)
+    } catch (error) {
+      if (!isGatewayReauthRequired(error)) {
+        throw error
+      }
+
+      const desktop = window.hermesDesktop
+
+      // Cloud registry URLs are the persisted agent dashboardUrl. Keep saved
+      // rows usable without discovery, but never run the cascade against ''.
+      if (!desktop?.cloud || !dashboardUrl) {
+        throw error
+      }
+
+      const outcome = await reestablishCloudAgentSession(desktop, dashboardUrl)
+
+      if (outcome !== 'connected') {
+        notify({
+          kind: 'warning',
+          title: t.boot.failure.signInIncompleteTitle,
+          message: t.boot.failure.signInIncompleteMessage
+        })
+
+        throw error
+      }
+
+      await selectConnection(id)
+    }
+  }
+
+  const activateSavedCloud = async (id: string, dashboardUrl?: string) => {
     setCloudConnectingId(id)
 
     try {
-      await selectConnection(id)
+      await selectSavedCloudWithReauth(id, dashboardUrl)
     } catch (err) {
       notifyError(err, g.cloudConnectFailed)
     } finally {
@@ -1035,7 +1080,7 @@ function GatewayConnectionSettings({ embedded, standalone }: { embedded: boolean
           await refreshConnectionsRegistry()
         }
 
-        await selectConnection(saved.id)
+        await selectSavedCloudWithReauth(saved.id, agent.dashboardUrl)
 
         return
       }
@@ -1251,7 +1296,7 @@ function GatewayConnectionSettings({ embedded, standalone }: { embedded: boolean
         </div>
       ) : null}
 
-      <div className="mb-5 grid gap-2">
+      <div className="mb-5 grid gap-2" id={settingElementId(SETTING_IDS.gateway.connectionMode)}>
         <div className="text-[length:var(--conversation-caption-font-size)] font-medium text-(--ui-text-secondary)">
           {g.modeTitle}
         </div>
@@ -1316,7 +1361,7 @@ function GatewayConnectionSettings({ embedded, standalone }: { embedded: boolean
                       ) : (
                         <Button
                           disabled={cloudConnectingId !== null}
-                          onClick={() => void activateSavedCloud(connection.id)}
+                          onClick={() => void activateSavedCloud(connection.id, connection.url)}
                           size="sm"
                           variant="outline"
                         >
@@ -1474,7 +1519,14 @@ function GatewayConnectionSettings({ embedded, standalone }: { embedded: boolean
         </div>
       ) : null}
 
-      {state.mode === 'remote' && !state.envOverride ? (
+      {/* An env-pinned remote (HERMES_DESKTOP_REMOTE_URL) still renders this
+          block: the override pins the URL/mode, but the browser SESSION is not
+          env-owned — docs promise "you still sign in from the Gateway settings
+          panel" (user-guide/desktop.md). Hiding it left a lapsed session with
+          no sign-in anywhere in Settings, and the boot-recovery card routes
+          every remote failure here, so "Use local gateway" became the only way
+          back in (#114856). The URL input and Save/Test stay env-gated above. */}
+      {state.mode === 'remote' ? (
         <div className="mt-5 grid gap-1">
           <ListRow
             action={
@@ -1513,13 +1565,16 @@ function GatewayConnectionSettings({ embedded, standalone }: { embedded: boolean
                     <Pill tone="primary">
                       <Check className="size-3" /> {g.signedIn}
                     </Pill>
-                    <Button disabled={signingIn || state.envOverride} onClick={() => void signOut()} variant="outline">
+                    {/* Sign-in/out are session actions, not connection edits: an
+                        env-pinned URL must still be able to refresh its lapsed
+                        session from here (#114856). */}
+                    <Button disabled={signingIn} onClick={() => void signOut()} variant="outline">
                       {signingIn ? <Loader2 className="animate-spin" /> : null}
                       {g.signOut}
                     </Button>
                   </div>
                 ) : (
-                  <Button disabled={signingIn || state.envOverride || !trimmedUrl} onClick={() => void signIn()}>
+                  <Button disabled={signingIn || !trimmedUrl} onClick={() => void signIn()}>
                     {signingIn ? <Loader2 className="animate-spin" /> : <LogIn />}
                     {isPasswordProvider ? g.signIn : g.signInWith(providerLabel)}
                   </Button>
@@ -1733,6 +1788,7 @@ function GatewayConnectionSettings({ embedded, standalone }: { embedded: boolean
             checked={keychainEncryption}
             description={g.keychainEncryptionDesc}
             disabled={keychainEncryptionBusy}
+            id={settingElementId(SETTING_IDS.gateway.keychainEncryption)}
             label={g.keychainEncryptionTitle}
             onChange={on => void setKeychainEncryption(on)}
           />
@@ -1744,6 +1800,7 @@ function GatewayConnectionSettings({ embedded, standalone }: { embedded: boolean
               </Button>
             }
             description={g.diagnosticsDesc}
+            id={settingElementId(SETTING_IDS.gateway.diagnostics)}
             title={g.diagnostics}
           />
         </div>
