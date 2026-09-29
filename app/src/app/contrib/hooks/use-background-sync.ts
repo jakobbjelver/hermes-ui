@@ -8,10 +8,16 @@ import {
 } from '@/app/chat/transcript-backfill'
 import { preserveLocalPendingTurnMessages } from '@/app/session/hooks/use-session-actions/utils'
 import { getLatestSessionMessages, type ProfileScope } from '@/hermes'
-import { type ChatMessage, preserveLocalAssistantErrors, sealOpenToolParts, toChatMessages } from '@/lib/chat-messages'
+import {
+  type ChatMessage,
+  preserveLocalAssistantErrors,
+  preserveLocalSystemNotices,
+  sealOpenToolParts,
+  toChatMessages
+} from '@/lib/chat-messages'
 import { createClientSessionState } from '@/lib/chat-runtime'
 import { sessionMessagesSignature } from '@/lib/session-signatures'
-import { latestSessionTodos } from '@/lib/todos'
+import { latestSessionTodos, latestSessionTodoSnapshot } from '@/lib/todos'
 import { pendingSessionReplay } from '@/store/gateway'
 import { $sidebarShowArchived } from '@/store/layout'
 import { $changeEventsAvailable, $cronChangeTick, $projectsChangeTick, $sessionsChangeTick } from '@/store/live-sync'
@@ -36,10 +42,17 @@ import {
   noteSessionEvent,
   publishSessionState,
   SESSION_WATCHDOG_TIMEOUT_MS,
+  setLiveTurnBackend,
   setSessionStalled
 } from '@/store/session-states'
 import { loadArchivedSessions } from '@/store/sidebar-archive'
-import { clearSessionTodos, setSessionTodos, todosForHydration } from '@/store/todos'
+import {
+  clearActiveSessionTodos,
+  clearSessionTodos,
+  restoreSessionTodosFromSnapshot,
+  setSessionTodos,
+  todosForHydration
+} from '@/store/todos'
 
 import type { ClientSessionState } from '../../types'
 import type { GatewayRequester } from '../types'
@@ -306,8 +319,16 @@ export async function reconcileTileTranscripts({
           // background refresh that lands mid-send would drop it and the
           // message would have to be retyped. Same composition order as
           // reconcileAuthoritativeChatMessages (use-session-actions/index.ts).
-          messages: preserveLocalAssistantErrors(
-            preserveLocalPendingTurnMessages(graftRefreshedTailOntoBackfill(messages, state.messages), state.messages),
+          // Trailing client-local system notices (fallback switch, #126422)
+          // are re-grafted last: the stored page cannot carry them.
+          messages: preserveLocalSystemNotices(
+            preserveLocalAssistantErrors(
+              preserveLocalPendingTurnMessages(
+                graftRefreshedTailOntoBackfill(messages, state.messages),
+                state.messages
+              ),
+              state.messages
+            ),
             state.messages
           )
         }),
@@ -388,20 +409,42 @@ export async function hydrateStoredSessionTranscript({
         runtimeSessionId,
         state => ({
           ...state,
-          // Keep backfilled pages, un-acked optimistic input and local errors.
-          messages: preserveLocalAssistantErrors(
-            preserveLocalPendingTurnMessages(graftRefreshedTailOntoBackfill(messages, state.messages), state.messages),
+          // Keep backfilled pages, un-acked optimistic input, local errors, and
+          // trailing client-local system notices (#126422).
+          messages: preserveLocalSystemNotices(
+            preserveLocalAssistantErrors(
+              preserveLocalPendingTurnMessages(
+                graftRefreshedTailOntoBackfill(messages, state.messages),
+                state.messages
+              ),
+              state.messages
+            ),
             state.messages
           )
         }),
         storedSessionId
       )
-      const restored = todosForHydration(latestSessionTodos(messages))
+      const snapshot = latestSessionTodoSnapshot(messages)
 
-      if (restored) {
+      if (snapshot) {
+        // Deferred Desktop resume sends no todo_state on its initial ACK.
+        // The persisted tool result is the first authoritative snapshot.
+        restoreSessionTodosFromSnapshot(runtimeSessionId, snapshot, false)
+      }
+
+      const latestTodos = latestSessionTodos(messages)
+      const restored = todosForHydration(latestTodos)
+
+      if (latestTodos?.length === 0) {
+        // An explicit empty result retires the list; missing paged history does not.
+        // A valid older snapshot must not mask a newer legacy clear without a revision.
+        if (!snapshot || snapshot.todos.length > 0) {
+          clearSessionTodos(runtimeSessionId)
+        }
+      } else if (restored) {
         setSessionTodos(runtimeSessionId, restored)
       } else {
-        clearSessionTodos(runtimeSessionId)
+        clearActiveSessionTodos(runtimeSessionId)
       }
 
       return
@@ -523,9 +566,13 @@ export async function reconcileActiveTranscript({
         ...state,
         // The refresh re-reads only the newest tail page; graft it onto any
         // older pages "Show earlier" already backfilled instead of clobbering
-        // them (see transcript-backfill).
-        messages: preserveLocalAssistantErrors(
-          preserveLocalPendingTurnMessages(graftRefreshedTailOntoBackfill(messages, state.messages), state.messages),
+        // them (see transcript-backfill). Trailing client-local system notices
+        // (fallback switch, #126422) are re-grafted last.
+        messages: preserveLocalSystemNotices(
+          preserveLocalAssistantErrors(
+            preserveLocalPendingTurnMessages(graftRefreshedTailOntoBackfill(messages, state.messages), state.messages),
+            state.messages
+          ),
           state.messages
         )
       }),
@@ -690,10 +737,12 @@ export function rehydrateLiveSessionStatuses(
       })
     }
 
-    if (working) {
-      // A poll that still lists the turn is an event. Reset the silence clock
-      // so a quiet tool call is not settled; a dead backend stops answering
-      // this poll and the clock runs out.
+    if (working || session.status === 'starting') {
+      // A poll that still lists the turn is an event: reset the silence
+      // clock so a quiet tool call is not checked early. 'starting' is the
+      // agent build for a turn the backend accepted (a cold local model); it
+      // feeds the clock without claiming a spinner, since a lazy resume
+      // builds with no turn at all.
       noteSessionEvent(runtimeSessionId)
     }
 
@@ -1015,6 +1064,29 @@ export function useBackgroundSync({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- connect-scoped: session deps would fire on every switch
   }, [activeConnectionId, activeGatewayProfile, gatewayState])
+
+  // A live turn that goes quiet is checked against the backend that runs it
+  // (store/session-states onEventSilence), not against this window's poll
+  // cadence, which pauses while unfocused and slows on battery. When that
+  // backend reports the turn over, the stored transcript catches up the
+  // reply its lost end events would have carried.
+  useEffect(
+    () =>
+      setLiveTurnBackend({
+        request: requestGateway,
+        refreshTranscript: (runtimeSessionId, storedSessionId) =>
+          hydrateStoredSessionTranscript({
+            attempts: 3,
+            runtimeSessionId,
+            storedProfile: profileScopeForTranscriptSession(
+              resolveActiveTranscriptSession(storedSessionId, runtimeSessionId)
+            ),
+            storedSessionId,
+            updateSessionState
+          })
+      }),
+    [requestGateway, updateSessionState]
+  )
 
   // A reconnect loses renderer-only working/attention atoms while the backend
   // keeps the actual turns alive. Re-seed from the gateway's in-memory session
