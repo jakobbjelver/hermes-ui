@@ -752,7 +752,10 @@ export function createWebBridge(): Window['hermesDesktop'] {
       startedAt: null,
       completedAt: null,
       setupChoice: null,
-      unsupportedPlatform: null
+      unsupportedPlatform: null,
+      // New required field upstream (in-app bundled installer artifact);
+      // the web app never ships a bundled install.
+      bundled: false
     }),
     resetBootstrap: async () => ({ ok: true }),
     repairBootstrap: async () => ({ ok: true }),
