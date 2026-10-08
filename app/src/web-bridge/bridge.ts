@@ -799,7 +799,7 @@ export function createWebBridge(): Window['hermesDesktop'] {
     quickEntry: {
       getSettings: async () => ({ enabled: false, error: null, registered: false, shortcut: '' }),
       setSettings: async () => ({ enabled: false, error: null, registered: false, shortcut: '' }),
-      submit: noop,
+      submit: async () => ({ ok: false, message: 'Quick Entry is desktop-only.' }),
       dismiss: noop,
       pushState: noop,
       onState: unsubscribed,
