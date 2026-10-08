@@ -787,6 +787,9 @@ export function createWebBridge(): Window['hermesDesktop'] {
       },
       run: async () => {
         throw new Error('uninstall is unavailable in the web app')
+      },
+      openAppsSettings: async () => {
+        throw new Error('uninstall is unavailable in the web app')
       }
     },
     themes: {
@@ -800,11 +803,13 @@ export function createWebBridge(): Window['hermesDesktop'] {
       getSettings: async () => ({ enabled: false, error: null, registered: false, shortcut: '' }),
       setSettings: async () => ({ enabled: false, error: null, registered: false, shortcut: '' }),
       submit: async () => ({ ok: false, message: 'Quick Entry is desktop-only.' }),
+      ackSubmit: noop,
       dismiss: noop,
       pushState: noop,
       onState: unsubscribed,
       onSubmit: unsubscribed,
-      onShown: unsubscribed
+      onShown: unsubscribed,
+      onLateResult: unsubscribed
     },
     readClipboard: async () => {
       try {
