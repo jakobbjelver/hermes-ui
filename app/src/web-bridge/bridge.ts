@@ -777,8 +777,9 @@ export function createWebBridge(): Window['hermesDesktop'] {
     updates: {
       check: async () => ({ supported: false }),
       apply: async () => ({ ok: false }),
-      getBranch: async () => ({ branch: '' }),
-      setBranch: async () => ({ branch: '' }),
+      // getBranch/setBranch were removed from the preload API upstream
+      // (2026-10-11): the update channel now rides on DesktopUpdateStatus and
+      // is written through the optional updates.setChannel.
       onProgress: unsubscribed
     },
     uninstall: {
