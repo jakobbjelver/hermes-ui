@@ -526,7 +526,6 @@ export function createWebBridge(): Window['hermesDesktop'] {
   const bridge: WebBridge = {
     getConnection: async profile => connection(profile),
     revalidateConnection: async () => ({ ok: true, rebuilt: false }),
-    touchBackend: async () => ({ ok: true }),
     getGatewayWsUrl: async () => {
       // One origin for both the ticket mint and the socket connect, so the dev
       // proxy routes them to the same gateway (a mismatch would 4403).
