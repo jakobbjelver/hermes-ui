@@ -4,7 +4,7 @@
 (MIT licensed, Copyright (c) 2025 Nous Research; see `LICENSE`).
 
 - Upstream: `hermes-agent` repository, `apps/desktop` and `apps/shared`.
-- Extracted at upstream commit: `4ea8d23cc9f527332ccb1d55359b27741b6ea51b` (2026-10-24).
+- Extracted at upstream commit: `7e157789fb147924935ab7810993b478acbdcb3a` (2026-10-25).
 - Extraction date: 2026-10-25.
 
 ## What was changed from upstream
