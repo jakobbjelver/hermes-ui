@@ -1,7 +1,6 @@
 import type { ModelOptionProvider } from '@hermes/shared'
 import { atom } from 'nanostores'
 
-import { invalidateAllConnectors } from '@/app/capabilities/connectors/data/keys'
 import {
   cancelOAuthSession,
   getGlobalModelOptions,
@@ -26,30 +25,18 @@ import {
   refreshFreeTierStatus,
   setFreeTierRoute
 } from '@/store/free-tier'
-import { followHandoff, handoffStillMoving } from '@/store/free-tier-sign-in'
+import { showFreeTierSignInResult } from '@/store/free-tier-sign-in'
 import { $gatewayBootGeneration } from '@/store/live-sync'
 import { setMainModelAssignment } from '@/store/model-assignment'
 import { dismissNotification, notify, notifyError } from '@/store/notifications'
 import { afterOnboardingSurfaceClear, onboardingSurfaceOpen } from '@/store/onboarding-presence'
 import { captureOnboardingScope, type OnboardingScope } from '@/store/onboarding-scope'
-import type { AppHandoffStatus, OAuthPollResponse, OAuthProvider, OAuthStartResponse } from '@/types/hermes'
+import type { OAuthProvider, OAuthStartResponse } from '@/types/hermes'
 
 type PkceStart = Extract<OAuthStartResponse, { flow: 'pkce' }>
 type DeviceStart = Extract<OAuthStartResponse, { flow: 'device_code' }>
 
 export type OnboardingMode = 'apikey' | 'oauth'
-
-export interface OnboardingSignedIn {
-  email: null | string
-  handoff: AppHandoffStatus | null
-}
-
-function signedInFrom(result: OAuthPollResponse): OnboardingSignedIn | undefined {
-  const email = result.account_email ?? null
-  const handoff = result.handoff_status ?? null
-
-  return email || handoff ? { email, handoff } : undefined
-}
 
 export type OnboardingFlow =
   | { status: 'idle' }
@@ -71,8 +58,6 @@ export type OnboardingFlow =
       label: string
       providerSlug: string
       saving: boolean
-      // A Nous sign-in's account and what the free tier's apps did, shown on the screen it happened on.
-      signedIn?: OnboardingSignedIn
       status: 'confirming_model'
     }
   | { detail?: string; message: string; provider?: OAuthProvider; start?: OAuthStartResponse; status: 'error' }
@@ -447,8 +432,7 @@ async function completeWithModelConfirm(
   // When true, a failing runtime check no longer blocks progression — the
   // user is allowed through onboarding regardless. Used by the API-key path,
   // where we intentionally don't validate the key (it blocked too many users).
-  ignoreRuntimeGate = false,
-  signedIn?: OnboardingSignedIn
+  ignoreRuntimeGate = false
 ) {
   const generation = flowGeneration
 
@@ -457,9 +441,6 @@ async function completeWithModelConfirm(
   if (!ctx.scope?.profile) {
     await ctx.requestGateway('reload.env').catch(() => undefined)
   }
-
-  // A sign-in can change the account the apps ride on.
-  invalidateAllConnectors()
 
   if (generation !== flowGeneration) {
     return
@@ -538,36 +519,8 @@ async function completeWithModelConfirm(
     providerSlug: defaults.providerSlug,
     currentModel: defaults.defaultModel,
     label: providerLabel,
-    saving: false,
-    signedIn
+    saving: false
   })
-
-  void followSignedInMove(signedIn, generation, ctx.scope)
-}
-
-// Keep the confirm screen's line about the moving apps current until the move settles or the screen goes.
-async function followSignedInMove(signedIn: OnboardingSignedIn | undefined, generation: number, scope?: ProfileScope) {
-  const moving = signedIn?.handoff
-
-  if (!signedIn || !moving || !handoffStillMoving(moving)) {
-    return
-  }
-
-  const shown = () => {
-    const { flow } = $desktopOnboarding.get()
-
-    return generation === flowGeneration && flow.status === 'confirming_model' ? flow : null
-  }
-
-  const publish = (handoff: AppHandoffStatus) => {
-    const flow = shown()
-
-    if (flow) {
-      setFlow({ ...flow, signedIn: { email: signedIn.email, handoff } })
-    }
-  }
-
-  await followHandoff(moving, () => shown() !== null, publish, scope)
 }
 
 function providerResolutionFailure(reason: null | string) {
@@ -1021,13 +974,15 @@ async function pollSession(provider: OAuthProvider, start: DeviceStart, ctx: Onb
       if (result.status === 'approved') {
         clearPoll()
         setFlow({ status: 'success', provider })
-        await completeWithModelConfirm(
-          ctx,
-          provider.name,
-          [provider.id],
-          reason => setFlow({ status: 'error', provider, message: providerResolutionFailure(reason) }),
-          false,
-          signedInFrom(result)
+        // A Nous sign-in that replaced the free tier shows what moved, the same screen the
+        // free-tier sign-in shows; onboarding carries on underneath.
+        showFreeTierSignInResult(result, ctx.scope)
+        await completeWithModelConfirm(ctx, provider.name, [provider.id], reason =>
+          setFlow({
+            status: 'error',
+            provider,
+            message: providerResolutionFailure(reason)
+          })
         )
 
         return

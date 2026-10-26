@@ -144,9 +144,6 @@ export function useComposerTrigger({
     setTriggerActiveExplicit(false)
   }, [])
 
-  // A `/` source with no adapter offers no menu (the onboarding chat before its setup ends).
-  const slashOff = !slash.adapter
-
   const refreshTrigger = useCallback(() => {
     const editor = editorRef.current
 
@@ -171,8 +168,7 @@ export function useComposerTrigger({
     }
 
     const before = textBeforeCaret(editor)
-    const typed = detectTrigger(before ?? composerPlainText(editor))
-    const found = slashOff && typed?.kind === '/' ? null : typed
+    const found = detectTrigger(before ?? composerPlainText(editor))
 
     // A text-only command has no completion screen once its prose begins. Mixed
     // commands such as /goal stay live so their finite subcommands can still be
@@ -196,7 +192,7 @@ export function useComposerTrigger({
     if (detected?.kind !== trigger?.kind || detected?.query !== trigger?.query) {
       resetTriggerActive()
     }
-  }, [editorRef, resetTriggerActive, slashOff, trigger])
+  }, [editorRef, resetTriggerActive, trigger])
 
   const triggerAdapter: Unstable_TriggerAdapter | null =
     trigger?.kind === '@'

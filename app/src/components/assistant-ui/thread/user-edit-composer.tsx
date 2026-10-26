@@ -307,9 +307,7 @@ export const UserEditComposer: FC<UserEditComposerProps> = ({ cwd, gateway, sess
     }
 
     const before = textBeforeCaret(editor)
-    const typed = detectTrigger(before ?? composerPlainText(editor))
-    // A `/` source with no adapter offers no menu (the onboarding chat before its setup ends).
-    const detected = typed?.kind === '/' && !slash.adapter ? null : typed
+    const detected = detectTrigger(before ?? composerPlainText(editor))
 
     if (detected) {
       const rect = editor.getBoundingClientRect()
@@ -328,7 +326,7 @@ export const UserEditComposer: FC<UserEditComposerProps> = ({ cwd, gateway, sess
     if (detected?.kind !== trigger?.kind || detected?.query !== trigger?.query) {
       setTriggerActive(0)
     }
-  }, [slash.adapter, trigger])
+  }, [trigger])
 
   const closeTrigger = useCallback(() => {
     setTrigger(null)

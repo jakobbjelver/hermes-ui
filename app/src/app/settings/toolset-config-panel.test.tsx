@@ -415,33 +415,33 @@ describe('ToolsetConfigPanel', () => {
     getToolsetConfig.mockResolvedValue(
       config({
         name: 'browser',
-        active_provider: 'Lightpanda',
+        active_provider: 'Camofox',
         providers: [
           {
-            name: 'Lightpanda',
+            name: 'Camofox',
             badge: 'local',
-            tag: 'Zig headless browser spawned by Hermes, text-only (no screenshots)',
+            tag: 'Stealth local browser',
             env_vars: [],
-            post_setup: 'lightpanda',
+            post_setup: 'camofox',
             requires_nous_auth: false,
             is_active: true
           }
         ]
       })
     )
-    runToolsetPostSetup.mockResolvedValue({ ok: true, pid: 4321, name: 'tools-post-setup', key: 'lightpanda' })
+    runToolsetPostSetup.mockResolvedValue({ ok: true, pid: 4321, name: 'tools-post-setup', key: 'camofox' })
     // First poll: still running; second poll: finished cleanly.
     getActionStatus
       .mockResolvedValueOnce({
         exit_code: null,
-        lines: ['Installing Lightpanda...'],
+        lines: ['Installing Camofox browser server...'],
         name: 'tools-post-setup',
         pid: 4321,
         running: true
       })
       .mockResolvedValue({
         exit_code: 0,
-        lines: ['Installing Lightpanda...', "Post-setup 'lightpanda' complete"],
+        lines: ['Installing Camofox browser server...', "Post-setup 'camofox' complete"],
         name: 'tools-post-setup',
         pid: 4321,
         running: false
@@ -451,7 +451,7 @@ describe('ToolsetConfigPanel', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /Run setup/ }))
 
-    await waitFor(() => expect(runToolsetPostSetup).toHaveBeenCalledWith('browser', 'lightpanda'))
+    await waitFor(() => expect(runToolsetPostSetup).toHaveBeenCalledWith('browser', 'camofox'))
     // The install log is tailed inline. The first poll fires after a 1200ms
     // delay (mirrors command-center's poll cadence), so allow >1200ms here.
     await waitFor(() => expect(getActionStatus).toHaveBeenCalledWith('tools-post-setup', 300), {
@@ -463,21 +463,21 @@ describe('ToolsetConfigPanel', () => {
     getToolsetConfig.mockResolvedValue(
       config({
         name: 'browser',
-        active_provider: 'Lightpanda',
+        active_provider: 'Camofox',
         providers: [
           {
-            name: 'Lightpanda',
+            name: 'Camofox',
             badge: 'local',
-            tag: 'Zig headless browser spawned by Hermes, text-only (no screenshots)',
+            tag: 'Stealth local browser',
             env_vars: [],
-            post_setup: 'lightpanda',
+            post_setup: 'camofox',
             requires_nous_auth: false,
             is_active: true
           }
         ]
       })
     )
-    runToolsetPostSetup.mockResolvedValue({ ok: true, pid: 4321, name: 'tools-post-setup', key: 'lightpanda' })
+    runToolsetPostSetup.mockResolvedValue({ ok: true, pid: 4321, name: 'tools-post-setup', key: 'camofox' })
     // Action finished but failed (non-zero exit).
     getActionStatus.mockResolvedValue({
       exit_code: 1,
@@ -617,19 +617,19 @@ describe('ToolsetConfigPanel', () => {
     it('renders Installed + Re-run setup instead of the primary CTA when the server says ready', async () => {
       // Regression (Windows 11 Capabilities journey): "Run setup" rendered
       // unconditionally, so an already-installed backend still showed the
-      // primary install CTA and clicking it re-ran the whole install.
-      // status === 'ready' must flip to a resting Installed state.
+      // primary install CTA and clicking it re-ran the whole npm/Chromium
+      // install. status === 'ready' must flip to a resting Installed state.
       getToolsetConfig.mockResolvedValue(
         config({
           name: 'browser',
-          active_provider: 'Lightpanda',
+          active_provider: 'Local Browser',
           providers: [
             {
-              name: 'Lightpanda',
+              name: 'Local Browser',
               badge: 'free',
-              tag: 'Zig headless browser spawned by Hermes, text-only (no screenshots)',
+              tag: 'Headless Chromium, no API key needed',
               env_vars: [],
-              post_setup: 'lightpanda',
+              post_setup: 'agent_browser',
               requires_nous_auth: false,
               is_active: true,
               status: 'ready'
@@ -640,7 +640,7 @@ describe('ToolsetConfigPanel', () => {
 
       render(<ToolsetConfigPanel onConfiguredChange={vi.fn()} toolset="browser" />)
 
-      await screen.findByText('Lightpanda')
+      await screen.findByText('Local Browser')
       expect(await screen.findByText('Installed')).toBeTruthy()
       expect(await screen.findByRole('button', { name: /Re-run setup/ })).toBeTruthy()
       expect(screen.queryByRole('button', { name: /^Run setup$/ })).toBeNull()
@@ -650,14 +650,14 @@ describe('ToolsetConfigPanel', () => {
       getToolsetConfig.mockResolvedValue(
         config({
           name: 'browser',
-          active_provider: 'Lightpanda',
+          active_provider: 'Local Browser',
           providers: [
             {
-              name: 'Lightpanda',
+              name: 'Local Browser',
               badge: 'free',
-              tag: 'Zig headless browser spawned by Hermes, text-only (no screenshots)',
+              tag: 'Headless Chromium, no API key needed',
               env_vars: [],
-              post_setup: 'lightpanda',
+              post_setup: 'agent_browser',
               requires_nous_auth: false,
               is_active: true,
               status: 'ready'
@@ -665,10 +665,10 @@ describe('ToolsetConfigPanel', () => {
           ]
         })
       )
-      runToolsetPostSetup.mockResolvedValue({ ok: true, pid: 4321, name: 'tools-post-setup', key: 'lightpanda' })
+      runToolsetPostSetup.mockResolvedValue({ ok: true, pid: 4321, name: 'tools-post-setup', key: 'agent_browser' })
       getActionStatus.mockResolvedValue({
         exit_code: 0,
-        lines: ['lightpanda already installed, nothing to do'],
+        lines: ['agent-browser already installed, nothing to do'],
         name: 'tools-post-setup',
         pid: 4321,
         running: false
@@ -678,7 +678,7 @@ describe('ToolsetConfigPanel', () => {
 
       fireEvent.click(await screen.findByRole('button', { name: /Re-run setup/ }))
 
-      await waitFor(() => expect(runToolsetPostSetup).toHaveBeenCalledWith('browser', 'lightpanda'))
+      await waitFor(() => expect(runToolsetPostSetup).toHaveBeenCalledWith('browser', 'agent_browser'))
     })
   })
 
@@ -693,7 +693,7 @@ describe('ToolsetConfigPanel', () => {
             badge: 'subscription',
             tag: 'Managed Browser Use billed to your subscription',
             env_vars: [],
-            post_setup: null,
+            post_setup: 'agent_browser',
             requires_nous_auth: true,
             is_active: false,
             status: 'needs_auth'

@@ -19,7 +19,6 @@ import {
 } from '@/lib/desktop-slash-commands'
 import { $slashCompletionsEpoch, cachedSlashCompletion, hasCachedSlashCompletion } from '@/lib/slash-completion-cache'
 import { normalize } from '@/lib/text'
-import { onboardingChatStore } from '@/store/onboarding-session'
 import { $sessions } from '@/store/session'
 
 import { completionOwner, completionOwnerKey, requestCompletion } from './completion-route'
@@ -58,12 +57,6 @@ function commandText(value: string): string {
 /** How many recent sessions to surface inline before the "Browse all…" entry. */
 const SESSION_INLINE_LIMIT = 7
 
-export interface SlashCompletions {
-  /** Null while this session offers no `/` menu: the onboarding chat before its setup ends. */
-  adapter: Unstable_TriggerAdapter | null
-  loading: boolean
-}
-
 /** Live `/` completions backed by the gateway's `complete.slash` RPC. */
 export function useSlashCompletions(options: {
   gateway: HermesGateway | null
@@ -77,7 +70,10 @@ export function useSlashCompletions(options: {
    *  come from here, not the backend (whose skin list is CLI/TUI-only). */
   skinThemes?: DesktopThemeCommandOption[]
   activeSkin?: string
-}): SlashCompletions {
+}): {
+  adapter: Unstable_TriggerAdapter
+  loading: boolean
+} {
   const { gateway, sessionId, profile, skinThemes, activeSkin } = options
   const { locale } = useI18n()
   const enabled = Boolean(gateway)
@@ -354,9 +350,5 @@ export function useSlashCompletions(options: {
     [skinThemes, keysFor]
   )
 
-  const live = useLiveCompletionAdapter({ enabled, epoch: `${epoch}:${locale}`, fetcher, isCached, toItem })
-  // Slash commands come after setup: none in the onboarding chat until its run ends.
-  const off = useStore(useMemo(() => onboardingChatStore(sessionId ?? null), [sessionId]))
-
-  return off ? { adapter: null, loading: false } : live
+  return useLiveCompletionAdapter({ enabled, epoch: `${epoch}:${locale}`, fetcher, isCached, toItem })
 }
