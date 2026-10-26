@@ -1,5 +1,12 @@
 name: Sync upstream & build Docker image
 
+# CHANNEL: stable
+# This workflow follows the upstream *stable release channel* — the newest
+# published non-prerelease vX.Y.Z GitHub release of NousResearch/hermes-agent —
+# not the moving `main` tip. It must match the backend, which runs
+# nousresearch/hermes-agent:stable. Bump nothing by hand: a new upstream release
+# is picked up on the next scheduled run, and a week without a release is a
+# no-op (no diff -> no build).
 on:
   push:
     branches: [main]
@@ -24,11 +31,25 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Checkout upstream monorepo
+      - name: Resolve latest stable release
+        id: channel
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=$(gh api repos/NousResearch/hermes-agent/releases/latest --jq '.tag_name')
+          if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
+            echo "::error::Could not resolve the latest upstream stable release"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "stable channel -> $TAG"
+
+      - name: Checkout upstream monorepo at the stable release tag
         uses: actions/checkout@v4
         with:
           repository: NousResearch/hermes-agent
           path: upstream-monorepo
+          ref: ${{ steps.channel.outputs.tag }}
           fetch-depth: 1
 
       - name: Run transformation
@@ -54,9 +75,9 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           UPSTREAM_SHA=$(head -10 UPSTREAM.md | grep -oE '[a-f0-9]{40}' | head -1)
           git add app/ shared/ UPSTREAM.md
-          git commit -m "sync: upstream hermes-agent @ ${UPSTREAM_SHA:0:7}
+          git commit -m "sync: upstream hermes-agent @ ${UPSTREAM_SHA:0:7} (${{ steps.channel.outputs.tag }})
 
-          Auto-synced from NousResearch/hermes-agent main branch."
+          Auto-synced from NousResearch/hermes-agent stable release ${{ steps.channel.outputs.tag }} (stable channel)."
           git push origin main
 
       # Build on every push to main (always), or on schedule/trigger only if upstream changed
@@ -66,7 +87,7 @@ jobs:
           if [ "${{ github.event_name }}" = "push" ]; then
             echo "build=true" >> "$GITHUB_OUTPUT"
             echo "Push event — always build."
-          elif [ "${{ steps.changes.outputs.changed }}" = "true" ]; then
+          elif [ "${{ steps.changes.outputs.changed }}" = 'true' ]; then
             echo "build=true" >> "$GITHUB_OUTPUT"
             echo "Upstream changes — build."
           else
@@ -82,7 +103,7 @@ jobs:
         if: steps.build_decision.outputs.build == 'true'
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
@@ -94,6 +115,7 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:stable
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           cache-from: type=gha
